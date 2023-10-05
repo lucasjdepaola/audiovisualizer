@@ -1,8 +1,10 @@
 const AudioContext = require("web-audio-api").AudioContext;
+let TICK = 0;
 context = new AudioContext();
 const fs = require("fs");
 const exec = require("child_process").exec;
 const _ = require("underscore");
+clearCursor();
 const colors = [
   "red",
   "orange",
@@ -22,20 +24,9 @@ colorMap["purple"] = 45;
 colorMap["white"] = 47;
 colorMap["cyan"] = 46;
 
-// "red": "41",
-// "orange": "41",
-// "yellow": "43",
-// "green": "42",
-// "purple": "45",
-// "white": "47",
-// "cyan": "46",
-
 let pcmdata = [];
 
-//Note: I have no rights to these sound files and they are not created by me.
-//You may downlaod and use your own sound file to further test this.
-//
-let soundfile = "sounds/hellcat.wav";
+let soundfile = "sounds/orchestra.mp3";
 console.clear();
 decodeSoundFile(soundfile);
 
@@ -45,23 +36,16 @@ decodeSoundFile(soundfile);
  */
 function decodeSoundFile(soundfile) {
   // console.log("decoding mp3 file ", soundfile, " ..... ");
-  fs.readFile(soundfile, function (err, buf) {
+  fs.readFile(soundfile, function(err, buf) {
     if (err) throw err;
-    context.decodeAudioData(buf, function (audioBuffer) {
-      // console.log(
-      //   context,
-      //   audioBuffer.numberOfChannels,
-      //   audioBuffer.length,
-      //   audioBuffer.sampleRate,
-      //   audioBuffer.duration,
-      // );
+    context.decodeAudioData(buf, function(audioBuffer) {
       pcmdata = audioBuffer.getChannelData(0);
       samplerate = audioBuffer.sampleRate;
       maxvals = [];
       max = 0;
       playsound(soundfile);
       findPeaks(pcmdata, samplerate);
-    }, function (err) {
+    }, function(err) {
       throw err;
     });
   });
@@ -74,55 +58,41 @@ function decodeSoundFile(soundfile) {
  * @return {[type]}            [description]
  */
 function findPeaks(pcmdata, samplerate) {
-  let interval = 0.05 * 1000;
+  const interval = 0.05 * 1000;
   index = 0;
-  let step = Math.round(samplerate * (interval / 1000));
+  const step = Math.round(samplerate * (interval / 1000));
   const numBars = 8;
-  const segSize = Math.floor(2400 / numBars);
-  let max = 0;
-  let prevmax = 0;
-  let prevdiffthreshold = 0.3;
+  // let max = 0;
+  // let prevmax = 0;
+  // let prevdiffthreshold = 0.3;
 
   //loop through song in time with sample rate
   const samplesound = setInterval(
-    function () {
+    function() {
       if (index >= pcmdata.length) {
         clearInterval(samplesound);
         console.log("finished sampling sound");
         return;
       }
 
-      // for (let i = index; i < index + step; i++) {
       const barHeights = [];
       for (let j = 0; j < numBars; j++) {
-        const startIndex = j * segSize;
-        const endIndex = (j + 1) * segSize;
-        // console.log(pcmdata.reduce((a, b) => Math.max(a, b), -Infinity));
-        const seg = pcmdata.slice(index, index + step).slice(
-          startIndex,
-          endIndex,
-        );
-        const segAmp = seg.reduce((a, b) => Math.max(a, b), -Infinity);
+        const maxAm = [];
+        for (let i = index; i < index + step; i++) {
+          maxAm.push(pcmdata[index]);
+          // console.log(pcmdata.reduce((a, b) => Math.max(a, b), -Infinity));
+        }
+        const segAmp = maxAm.reduce((a, b) => Math.max(a, b), -Infinity);
         barHeights.push(segAmp);
-        // }
         index += step;
-        // max = pcmdata[i] > max ? pcmdata[i].toFixed(1) : max;
       }
-      // console.log(barHeights);
+      if (TICK === 10) {
+        //needs to be refactored, this is a hack solution to the problem of clearing
+        TICK = 0;
+        clearBars();
+      }
       drawBars(barHeights);
-      // console.log();
-
-      // Spot a significant increase? Potential peak
-      // bars = getbars(max);
-      // if (max - prevmax >= prevdiffthreshold) {
-      //   bars = bars + " == peak == ";
-      // }
-      //
-      // // Print out mini equalizer on commandline
-      // // console.log(bars, max);
-      // prevmax = max;
-      // max = 0;
-      // index += step;
+      TICK++;
     },
     interval,
     pcmdata,
@@ -136,6 +106,9 @@ function findPeaks(pcmdata, samplerate) {
 function detectBeats() {
 }
 
+/**
+ * Draws audio visualizer bars.
+ */
 function drawBars(barArr) {
   const BARHEIGHT = 50;
   const BARWIDTH = 10;
@@ -153,6 +126,23 @@ function drawColumn(color, barHeight, widthPos) {
     // drawRainbowCharacter(color, widthPos, barHeight);
     process.stdout.write(drawRainbowCharacter(color, i, widthPos));
   }
+}
+
+function clearBars() {
+  //you need to write the background with the default parameter "49"
+  const BARHEIGHT = 50;
+  const BARWIDTH = 10;
+  let CURRENTWIDTH = 0;
+  for (let i = 0; i < 8; i++) {
+    for (let j = CURRENTWIDTH; j < CURRENTWIDTH + BARWIDTH; j++) {
+      drawColumn("49", BARHEIGHT, j);
+    }
+    CURRENTWIDTH += BARWIDTH + 5;
+  }
+}
+
+function clearCursor() {
+  console.log("\x1b[?25l\x1b");
 }
 
 function drawRainbowCharacter(color, row, col) {
@@ -179,19 +169,14 @@ function getbars(val) {
  * @return {[type]}           [void]
  */
 function playsound(soundfile) {
-  // linux or raspi
-  // let create_audio = exec(
-  //   "aplay" + soundfile,
-  //   { maxBuffer: 1024 * 500 },
-  // function (error, stdout, stderr) {
-  let create_audio = exec("ffplay -nodisp -autoexit " + soundfile, {
-    maxBuffer: 1024 * 500,
-  }, function (error, stdout, stderr) {
-    if (error !== null) {
-      console.log("exec error: " + error);
-    } else {
-      //console.log(" finshed ");
-      //micInstance.resume();
-    }
-  });
+  // let create_audio = exec("ffplay -nodisp -autoexit " + soundfile, {
+  //   maxBuffer: 1024 * 500,
+  // }, function (error, stdout, stderr) {
+  //   if (error !== null) {
+  //     console.log("exec error: " + error);
+  //   } else {
+  //     //console.log(" finshed ");
+  //     //micInstance.resume();
+  //   }
+  // });
 }
