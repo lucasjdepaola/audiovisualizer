@@ -1,4 +1,5 @@
 const AudioContext = require("web-audio-api").AudioContext;
+let arbHeight = 0;
 let TICK = 0;
 context = new AudioContext();
 const fs = require("fs");
@@ -26,7 +27,7 @@ colorMap["cyan"] = 46;
 
 let pcmdata = [];
 
-let soundfile = "sounds/orchestra.mp3";
+let soundfile = "sounds/hellcat.wav";
 console.clear();
 decodeSoundFile(soundfile);
 
@@ -78,21 +79,23 @@ function findPeaks(pcmdata, samplerate) {
       const barHeights = [];
       for (let j = 0; j < numBars; j++) {
         const maxAm = [];
-        for (let i = index; i < index + step; i++) {
-          maxAm.push(pcmdata[index]);
+        for (let i = index * j; i < (index * j) + (step / numBars); i++) {
+          maxAm.push(pcmdata[i]);
           // console.log(pcmdata.reduce((a, b) => Math.max(a, b), -Infinity));
         }
-        const segAmp = maxAm.reduce((a, b) => Math.max(a, b), -Infinity);
+        const segAmp = maxAm.reduce((a, b) =>
+          Math.max(Math.abs((a, b)), -Infinity)
+        );
         barHeights.push(segAmp);
-        index += step;
       }
-      if (TICK === 10) {
-        //needs to be refactored, this is a hack solution to the problem of clearing
-        TICK = 0;
-        clearBars();
-      }
+      index += step;
+      // if (TICK === 2) {
+      //   clearBars(barHeights);
+      //   TICK = 0;
+      // }
+      // TICK++;
       drawBars(barHeights);
-      TICK++;
+      clearBars(barHeights);
     },
     interval,
     pcmdata,
@@ -128,21 +131,31 @@ function drawColumn(color, barHeight, widthPos) {
   }
 }
 
-function clearBars() {
+function clearColumn(color, barHeight, widthPos) {
+  for (let i = barHeight; i < 50; i++) {
+    process.stdout.write(drawRainbowCharacter(color, i, widthPos));
+  }
+}
+
+function clearBars(barHeights) {
   //you need to write the background with the default parameter "49"
   const BARHEIGHT = 50;
   const BARWIDTH = 10;
   let CURRENTWIDTH = 0;
   for (let i = 0; i < 8; i++) {
     for (let j = CURRENTWIDTH; j < CURRENTWIDTH + BARWIDTH; j++) {
-      drawColumn("49", BARHEIGHT, j);
+      clearColumn("49", barHeights[i] * 20, j);
     }
     CURRENTWIDTH += BARWIDTH + 5;
   }
 }
 
+function neoclearBars() {
+  process.stdout.write("\x1b[2J\x1b[0m");
+}
+
 function clearCursor() {
-  console.log("\x1b[?25l\x1b");
+  console.log("\x1b[?25l\x1b[0m");
 }
 
 function drawRainbowCharacter(color, row, col) {
